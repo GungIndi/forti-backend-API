@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Post, Replies, Feedback, Employee
+from .models import User, Post, Replies, Employee
 
 
 class UserSerializer(serializers.ModelSerializer):
