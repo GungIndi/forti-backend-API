@@ -3,8 +3,9 @@ from django.db import models
 class User(models.Model):
     first_name = models.CharField(max_length=30,null=True)
     last_name = models.CharField(max_length=30,null=True)
-    nomor_induk = models.CharField(max_length=19, null=False)
+    identity_number = models.CharField(max_length=19, null=False)
     user_name = models.CharField(max_length=30,null=False)
+    email = models.EmailField(max_length=30, null=False, default="")
     password = models.CharField(max_length=32)
     USER_ROLE = models.TextChoices("userRole","Admin Humas Mahasiswa Dosen")
     user_role = models.CharField(choices=USER_ROLE.choices, null = False)
@@ -25,7 +26,7 @@ class Post(models.Model):
         return f"Post by {self.user_name}"
 
 
-class Replies(models.Model):
+class Reply(models.Model):
     post_id = models.ForeignKey(Post, null=False, on_delete=models.CASCADE)
     user_id = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
     content = models.TextField(null=False, default="")
@@ -48,7 +49,7 @@ class PostFeedback(models.Model):
         return f"Feedback to Post {self.post_id} = {self.feedback_type}"
 
 class RepliesFeedback(models.Model):
-    replies_id = models.ForeignKey(Replies, on_delete=models.CASCADE, null=False)
+    replies_id = models.ForeignKey(Reply, on_delete=models.CASCADE, null=False)
     user_id = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
     FEEDBACK_TYPE = models.TextChoices("feedback","Like Dislike")
     feedback_type = models.CharField(choices=FEEDBACK_TYPE.choices, null=False, default="Like")
