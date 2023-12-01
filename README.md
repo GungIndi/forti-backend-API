@@ -1,2 +1,3 @@
-# Djago-RestFramework
-Rest API with Django for college
+# ForTI Backend API
+
+ForTI Backend Rest API with Django for Internet Programming Final Project
