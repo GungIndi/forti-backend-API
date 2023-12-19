@@ -7,57 +7,56 @@ class User(models.Model):
     user_name = models.CharField(max_length=30,null=False)
     email = models.EmailField(max_length=30, null=False, default="")
     password = models.CharField(max_length=32)
-    USER_ROLE = models.TextChoices("userRole","Admin Humas Mahasiswa Dosen")
+    USER_ROLE = models.TextChoices("userRole","admin humas mahasiswa dosen")
     user_role = models.CharField(choices=USER_ROLE.choices, null = False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
 
-
-class Post(models.Model):
-    user_id = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
-    content = models.TextField(null=False)
-    created_at = models.DateField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Post by {self.user_name}"
-
-
-class Reply(models.Model):
-    post_id = models.ForeignKey(Post, null=False, on_delete=models.CASCADE)
-    user_id = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
-    content = models.TextField(null=False, default="")
-    created_at = models.DateField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Replied to Post {self.post_id} by {self.user_name}"
-
-
 class PostFeedback(models.Model):
-    post_id = models.ForeignKey(Post, on_delete=models.CASCADE, null=False)
-    user_id = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
+    user = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
     FEEDBACK_TYPE = models.TextChoices("feedback","Like Dislike")
     feedback_type = models.CharField(choices=FEEDBACK_TYPE.choices, null=False)
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Feedback to Post {self.post_id} = {self.feedback_type}"
+        return f"Feedback {self.feedback_type}"
+    
+class Post(models.Model):
+    user = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
+    content = models.TextField(blank=False, default="")
+    feedback = models.ForeignKey(PostFeedback, on_delete=models.DO_NOTHING, null=True)
+    created_at = models.DateField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return f"Replied to Post {self.user}"
 
 class RepliesFeedback(models.Model):
-    replies_id = models.ForeignKey(Reply, on_delete=models.CASCADE, null=False)
-    user_id = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
+    user = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
     FEEDBACK_TYPE = models.TextChoices("feedback","Like Dislike")
     feedback_type = models.CharField(choices=FEEDBACK_TYPE.choices, null=False, default="Like")
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Feedback to Replies {self.replies_id} = {self.feedback_type}"
+        return f"Feedback {self.feedback_type}"
+    
+class Reply(models.Model):
+    post = models.ForeignKey(Post, null=False, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.DO_NOTHING, null=False)
+    content = models.TextField(blank=False, default="")
+    feedback = models.ForeignKey(RepliesFeedback, on_delete=models.DO_NOTHING, null=True)
+    created_at = models.DateField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return f"Replied to Post {self.post} by {self.user}"
+
+
+
+
+
 
 
 
