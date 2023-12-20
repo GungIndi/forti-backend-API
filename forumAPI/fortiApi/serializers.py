@@ -21,7 +21,7 @@ class RepliesSerializer(serializers.ModelSerializer):
     
 class PostSerializer(serializers.ModelSerializer):
     user_id = serializers.SerializerMethodField()
-    replies = RepliesSerializer(many=True)
+    replies = RepliesSerializer(many=True, required=False)
     likes = serializers.SerializerMethodField()
     dislikes = serializers.SerializerMethodField()
 
@@ -41,6 +41,7 @@ class PostSerializer(serializers.ModelSerializer):
             return {'id' : user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'identity_number' : user.identity_number, 'username' : user.username}
         else :
             None
+
 class PostFeedbackSerializer(serializers.ModelSerializer):
     user_id = serializers.SerializerMethodField()
     post_id = serializers.SerializerMethodField()  

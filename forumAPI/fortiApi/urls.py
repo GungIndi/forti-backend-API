@@ -6,7 +6,7 @@ urlpatterns = [
     path('', main),
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
-    path('users/', UserView.as_view()),
+    path('users', UserView.as_view()),
     re_path(r'^users/(?P<id>\d+)/$', GetUser.as_view({'get':'search_by_id', 'put':'update_user', 'delete':'delete_user'}),name='user-by-id'),
     path('posts/', PostView.as_view()),
     re_path(r'^posts/(?P<id>\d+)/$', GetPost.as_view({'get':'search_by_id', 'put':'update_post', 'delete':'delete_post'}),name='post-by-id'),

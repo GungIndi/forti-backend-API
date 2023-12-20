@@ -23,10 +23,10 @@ class RegisterView(generics.CreateAPIView):
             serializer = UserSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                return Response({'status': 'OK', 'status_code': 201, 'message': 'Registration successful. Welcome to our platform!', 'data': serializer.data}, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
-            return Response({'error': 'Unique constraint violated. User with this value already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 'Bad Request', 'status_code': 400, 'message': 'Unique constraint violated. User with this value already exists.'}, status=status.HTTP_400_BAD_REQUEST)
     
 class LoginView(generics.ListCreateAPIView):
     queryset = User.objects.all()
@@ -41,13 +41,18 @@ class LoginView(generics.ListCreateAPIView):
 
         if user:
             token, created = Token.objects.get_or_create(user=user)
-            return Response({'token': token.key}, status=status.HTTP_200_OK)
+            return Response({'status': 'OK', 'status_code': 200, 'message': 'Login Succesful.', 'token': token.key}, status=status.HTTP_200_OK)
         else:
-            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'status': 'Unauthorized', 'status_code': 401, 'message': 'Invalid credentials.', 'data': None}, status=status.HTTP_401_UNAUTHORIZED)
         
 class UserView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
+    def list(self, request, *args, **kwargs):
+        users = self.get_queryset()
+        serializer = self.get_serializer(users, many=True)
+        return Response({'status': 'OK', 'status_code': 200, 'message': 'Query Successfull.', 'data': serializer.data})
 
     filterset_fields = ['identity_number', 'username', 'user_role']
     @action(detail=False, methods=['GET'])
@@ -62,9 +67,9 @@ class UserView(generics.ListAPIView):
             users = User.objects.filter(**filters)
             if users.exists():
                 serializer = self.get_serializer(users, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return Response({'status': 'OK', 'status_code': 200, 'message': 'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
             else:
-                return Response({"error": "No matching data found."}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
         else:
             return super().get(request, *args, **kwargs)
 
@@ -77,9 +82,10 @@ class GetUser(viewsets.ModelViewSet):
         try:
             user = User.objects.get(pk=id)
             serializer = UserSerializer(user)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+
+            return Response({'status': 'OK', 'status_code': 200, 'message':'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
             
     @action(detail=False, methods=['PUT'])
     def update_user(self, request, id):
@@ -99,15 +105,31 @@ class GetUser(viewsets.ModelViewSet):
         try:
             user = User.objects.get(pk=id)
             user.delete()
-            return Response({"message": "User deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'status': 'OK', 'status_code': 200, 'message': 'User deleted successfully.', 'data': None}, status=status.HTTP_204_NO_CONTENT)
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
 
 
 
 class PostView(generics.ListCreateAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
+
+    def list(self, request, *args, **kwargs):
+        posts = self.get_queryset()
+        serializer = self.get_serializer(posts, many=True)
+        return Response({'status': 'OK', 'status_code': 200, 'message': 'Query Successfull.', 'data': serializer.data})
+    
+    def post(self, request):
+        try:
+            serializer = PostSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'status': 'OK', 'status_code': 201, 'message': 'Query Successful', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError as e:
+            return Response({'status': 'Bad Request', 'status_code': 400, 'message': 'Bad Request'}, status=status.HTTP_400_BAD_REQUEST)
+    
     filterset_fields = ['category', 'content']
 
     @action(detail=False, methods=['GET'])
@@ -116,7 +138,8 @@ class PostView(generics.ListCreateAPIView):
         for field in self.filterset_fields:
             param = self.request.query_params.get(field, None)
             if param:
-                filters[field] = param
+                lookup = 'icontains' if field == 'content' else 'exact'
+                filters[field + '__' + lookup] = param
 
         if filters:
             posts = Post.objects.filter(**filters)
@@ -139,7 +162,7 @@ class PostView(generics.ListCreateAPIView):
                 feedback_type = None
             else:
                 # Handle invalid sort_by parameter
-                return Response({"error": "Invalid sort parameter."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'status': 'Bad Request', 'status_code': 400, 'message': 'Invalid Sort Parameter', 'data': None}, status=status.HTTP_400_BAD_REQUEST)
 
             # Annotate the queryset with total_likes or total_dislikes
             if feedback_type:
@@ -163,10 +186,10 @@ class PostView(generics.ListCreateAPIView):
                 posts = posts[:limit]
 
             serializer = self.get_serializer(posts, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response({'status': 'OK', 'status_code': 200, 'message':'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
         else:
             # If no matching data is found, return an appropriate response
-            return Response({"error": "No matching data found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
 
 class GetPost(viewsets.ModelViewSet):
     queryset = Post.objects.all()
@@ -177,9 +200,9 @@ class GetPost(viewsets.ModelViewSet):
         try:
             post = Post.objects.get(pk=id)
             serializer = PostSerializer(post)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response({'status': 'OK', 'status_code': 200, 'message':'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
         except Post.DoesNotExist:
-            return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=['PUT'])
     def update_post(self, request, id):
@@ -188,20 +211,20 @@ class GetPost(viewsets.ModelViewSet):
             serializer = UserSerializer(post, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return Response({'status': 'OK', 'status_code': 200, 'message':'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
             else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'status': 'Bad Request', 'status_code': 400, 'message': 'Data not Valid', 'data': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
         except Post.DoesNotExist:
-            return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=['DELETE'])
     def delete_post(self, request, id):
         try:
             post = Post.objects.get(pk=id)
             post.delete()
-            return Response({"message": "Post deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'status': 'No Content', 'status_code': 204, 'message':'Query Successful', 'data': None}, status=status.HTTP_204_NO_CONTENT)
         except Post.DoesNotExist:
-            return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
 
 class RepliesView(generics.ListCreateAPIView):
     queryset = Reply.objects.all()
@@ -216,9 +239,9 @@ class GetReply(viewsets.ModelViewSet):
         try:
             reply = Reply.objects.get(pk=id)
             serializer = RepliesSerializer(reply)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response({'status': 'OK', 'status_code': 200, 'message':'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
         except Reply.DoesNotExist:
-            return Response({"error": "Reply not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=['PUT'])
     def update_reply(self, request, id):
@@ -227,20 +250,20 @@ class GetReply(viewsets.ModelViewSet):
             serializer = RepliesSerializer(reply, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return Response({'status': 'OK', 'status_code': 200, 'message':'Query Successful', 'data': serializer.data}, status=status.HTTP_200_OK)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Reply.DoesNotExist:
-            return Response({"error": "Reply not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=['DELETE'])
     def delete_reply(self, request, id):
         try:
             reply = Reply.objects.get(pk=id)
             reply.delete()
-            return Response({"message": "Reply deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'status': 'No Content', 'status_code': 204, 'message':'Query Successful', 'data': None}, status=status.HTTP_204_NO_CONTENT)
         except Reply.DoesNotExist:
-            return Response({"error": "Reply not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 'Not Found', 'status_code': 404, 'message': 'No Matching Data Found', 'data': None}, status=status.HTTP_404_NOT_FOUND)
 
 class RepliesFeedbackView(generics.ListCreateAPIView, generics.DestroyAPIView):
     queryset = RepliesFeedback.objects.all()
