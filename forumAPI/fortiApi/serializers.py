@@ -1,10 +1,16 @@
 from rest_framework import serializers
 from .models import *
+from django.contrib.auth.hashers import make_password
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = '__all__' 
+        fields = '__all__'
+    
+    def save(self, **kwargs):
+        # Automatically hash the password before saving
+        self.validated_data['password'] = make_password(self.validated_data['password'], hasher='pbkdf2_sha256')
+        super().save(**kwargs)
 
 class RepliesSerializer(serializers.ModelSerializer):
     user_id = serializers.SerializerMethodField()
@@ -21,7 +27,7 @@ class RepliesSerializer(serializers.ModelSerializer):
     
 class PostSerializer(serializers.ModelSerializer):
     user_id = serializers.SerializerMethodField()
-    replies = RepliesSerializer(many=True, required=False)
+    replies = RepliesSerializer(many=True, required=False, read_only=True)
     likes = serializers.SerializerMethodField()
     dislikes = serializers.SerializerMethodField()
 
