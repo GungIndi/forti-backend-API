@@ -13,10 +13,40 @@ class UserSerializer(serializers.ModelSerializer):
         super().save(**kwargs)
 
 class RepliesSerializer(serializers.ModelSerializer):
-    user_id = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+    post = serializers.SerializerMethodField()
+
     class Meta:
         model = Reply
         fields = '__all__'
+
+    def get_user(self, obj):
+        user = obj.user
+        if user:
+            return {'id' : user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'identity_number' : user.identity_number, 'username' : user.username}
+        else :
+            None
+
+    def get_post(self, obj):
+        post = obj.post
+        if post:
+            return {"id" : post.id, "content":post.content, "user_id": post.user_id}
+        else :
+            None
+
+class RepliesCreateSerializer(serializers.ModelSerializer):
+    user_id = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Reply
+        fields = '__all__'
+
+    def get_likes(self, obj):
+        return obj.get_total_likes()
+
+    def get_dislikes(self, obj):
+        return obj.get_total_dislikes()
 
     def get_user_id(self, obj):
         user = obj.user
@@ -24,9 +54,16 @@ class RepliesSerializer(serializers.ModelSerializer):
             return {'id' : user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'identity_number' : user.identity_number, 'username' : user.username}
         else :
             None
-    
+
+    def get_post_id(self, obj):
+        post = obj.post
+        if post:
+            return {"id" : post.id, "content":post.content, "user_id": post.user_id}
+        else :
+            None
+
 class PostSerializer(serializers.ModelSerializer):
-    user_id = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
     replies = RepliesSerializer(many=True, required=False, read_only=True)
     likes = serializers.SerializerMethodField()
     dislikes = serializers.SerializerMethodField()
@@ -40,7 +77,48 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_dislikes(self, obj):
         return obj.get_total_dislikes()
-    
+
+    def get_user(self, obj):
+        user = obj.user
+        if user:
+            return {'id' : user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'identity_number' : user.identity_number, 'username' : user.username}
+        else :
+            None
+
+class PostListSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    likes = serializers.SerializerMethodField()
+    dislikes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = '__all__'
+
+    def get_likes(self, obj):
+        return obj.get_total_likes()
+
+    def get_dislikes(self, obj):
+        return obj.get_total_dislikes()
+
+    def get_user(self, obj):
+        user = obj.user
+        if user:
+            return {'id' : user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'identity_number' : user.identity_number, 'username' : user.username}
+        else:
+            return None
+        
+class PostCreateSerializer(serializers.ModelSerializer):
+    user_id = serializers.SerializerMethodField
+    class Meta:
+        model = Post
+        fields = '__all__'
+
+    def get_likes(self, obj):
+        return obj.get_total_likes()
+
+    def get_dislikes(self, obj):
+        return obj.get_total_dislikes()
+
     def get_user_id(self, obj):
         user = obj.user
         if user:

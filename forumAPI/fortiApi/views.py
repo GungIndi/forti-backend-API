@@ -14,6 +14,15 @@ from .models import *
 def main(request):
     return HttpResponse('<h1> Hello </h1>')
 
+
+class BaseAPIView(generics.GenericAPIView):
+    def format_response(self, code, status, data):
+        return Response({
+            'code': code,
+            'status': status,
+            'data': data,
+        }, status=code)
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -23,10 +32,10 @@ class RegisterView(generics.CreateAPIView):
             serializer = UserSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return BaseAPIView.format_response(self, status.HTTP_201_CREATED, "CREATED", serializer.data)
+            return BaseAPIView.format_response(self,status.HTTP_400_BAD_REQUEST, "BAD_REQUEST", serializer._errors)
         except IntegrityError as e:
-            return Response({'message': 'Unique constraint violated. User with this value already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+            return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST, "Unique constraint violated. User with this value already exists.", None)
     
 class LoginView(generics.ListCreateAPIView):
     queryset = User.objects.all()
@@ -40,17 +49,15 @@ class LoginView(generics.ListCreateAPIView):
         try:
             user = User.objects.get(username__iexact=username)
         except User.DoesNotExist:
-            return Response({'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST, "User not found.", None)
 
         is_valid_password = check_password(password, user.password)
 
         if is_valid_password:
-            # Authentication successful
-            # token, created = Token.objects.create(user=user)
-            return Response({'username': username, 'token': username+user.password}, status=status.HTTP_200_OK)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", {'id': user.id,'username': username, 'token': username+user.password})
         else:
             # Authentication failed
-            return Response({'message': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+            return BaseAPIView.format_response(self, status.HTTP_401_UNAUTHORIZED, "Invalid credentials.", None)
 
         
 class UserView(generics.ListAPIView):
@@ -60,7 +67,7 @@ class UserView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         users = self.get_queryset()
         serializer = self.get_serializer(users, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return BaseAPIView.format_response(self, status.HTTP_200_OK, 'OK', serializer.data)
 
     filterset_fields = ['identity_number', 'username', 'user_role']
     @action(detail=False, methods=['GET'])
@@ -75,9 +82,9 @@ class UserView(generics.ListAPIView):
             users = User.objects.filter(**filters)
             if users.exists():
                 serializer = self.get_serializer(users, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
             else:
-                return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+                return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
         else:
             return super().get(request, *args, **kwargs)
 
@@ -90,10 +97,9 @@ class GetUser(viewsets.ModelViewSet):
         try:
             user = User.objects.get(pk=id)
             serializer = UserSerializer(user)
-
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
         except User.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
             
     @action(detail=False, methods=['PUT'])
     def update_user(self, request, id):
@@ -102,41 +108,45 @@ class GetUser(viewsets.ModelViewSet):
             serializer = UserSerializer(user, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
             else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
         
     @action(detail=False, methods=['DELETE'])
     def delete_user(self, request, id):
         try:
             user = User.objects.get(pk=id)
             user.delete()
-            return Response({'message': 'User deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+            return BaseAPIView.format_response(self, status.HTTP_204_NO_CONTENT, "User deleted successfully.", None)
         except User.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
-
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
 
 
 class PostView(generics.ListCreateAPIView):
     queryset = Post.objects.all()
-    serializer_class = PostSerializer
 
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return PostCreateSerializer
+        else:
+            return PostListSerializer
+        
     def list(self, request, *args, **kwargs):
         posts = self.get_queryset()
-        serializer = self.get_serializer(posts, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = PostListSerializer(posts, many=True)
+        return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
     
     def post(self, request):
         try:
-            serializer = PostSerializer(data=request.data)
+            serializer = PostCreateSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return BaseAPIView.format_response(self, status.HTTP_201_CREATED, "CREATED", serializer.data)
+            return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
         except IntegrityError as e:
-            return Response({'message': 'Bad Request'}, status=status.HTTP_400_BAD_REQUEST)
+            return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
     
     filterset_fields = ['category', 'content']
 
@@ -170,7 +180,7 @@ class PostView(generics.ListCreateAPIView):
                 feedback_type = None
             else:
                 # Handle invalid sort_by parameter
-                return Response({'message': 'Invalid Sort Parameter'}, status=status.HTTP_400_BAD_REQUEST)
+                return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", 'Invalid Parameter')
 
             # Annotate the queryset with total_likes or total_dislikes
             if feedback_type:
@@ -194,84 +204,112 @@ class PostView(generics.ListCreateAPIView):
                 posts = posts[:limit]
 
             serializer = self.get_serializer(posts, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
         else:
             # If no matching data is found, return an appropriate response
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
 
 class GetPost(viewsets.ModelViewSet):
     queryset = Post.objects.all()
-    serializer_class = PostSerializer
+
+    def get_serializer_class(self):
+        if self.request.method == 'PUT':
+            return PostCreateSerializer
+        else:
+            return PostSerializer
 
     @action(detail=False, methods=['GET'])
     def search_by_id(self, request, id):
         try:
             post = Post.objects.get(pk=id)
             serializer = PostSerializer(post)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
         except Post.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
         
     @action(detail=False, methods=['PUT'])
     def update_post(self, request, id):
         try:
             post = Post.objects.get(pk=id)
-            serializer = UserSerializer(post, data=request.data)
+            serializer = PostCreateSerializer(post, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
             else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
         except Post.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
         
     @action(detail=False, methods=['DELETE'])
     def delete_post(self, request, id):
         try:
             post = Post.objects.get(pk=id)
             post.delete()
-            return Response({'message':'Query Successful'}, status=status.HTTP_204_NO_CONTENT)
+            return BaseAPIView.format_response(self, status.HTTP_204_NO_CONTENT, "Post deleted successfully.", None)
         except Post.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
 
 class RepliesView(generics.ListCreateAPIView):
     queryset = Reply.objects.all()
-    serializer_class = RepliesSerializer
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return RepliesCreateSerializer
+        else:
+            return RepliesSerializer
+
+    def list(self, request, *args, **kwargs):
+        posts = self.get_queryset()
+        serializer = RepliesSerializer(posts, many=True)
+        return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
+    
+    def post(self, request):
+        try:
+            serializer = RepliesCreateSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return BaseAPIView.format_response(self, status.HTTP_201_CREATED, "CREATED", serializer.data)
+            return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
+        except IntegrityError as e:
+            return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
 
 class GetReply(viewsets.ModelViewSet):
     queryset = Reply.objects.all()
-    serializer_class = RepliesSerializer
+    def get_serializer_class(self):
+        if self.request.method == 'PUT':
+            return RepliesCreateSerializer
+        else:
+            return RepliesSerializer
 
     @action(detail=False, methods=['GET'])
     def search_by_id(self, request, id):
         try:
             reply = Reply.objects.get(pk=id)
             serializer = RepliesSerializer(reply)
-            return Response( serializer.data, status=status.HTTP_200_OK)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
         except Reply.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
         
     @action(detail=False, methods=['PUT'])
     def update_reply(self, request, id):
         try:
             reply = Reply.objects.get(pk=id)
-            serializer = RepliesSerializer(reply, data=request.data)
+            serializer = RepliesCreateSerializer(reply, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
             else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
         except Reply.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
         
     @action(detail=False, methods=['DELETE'])
     def delete_reply(self, request, id):
         try:
             reply = Reply.objects.get(pk=id)
             reply.delete()
-            return Response({'message':'Query Successful'}, status=status.HTTP_204_NO_CONTENT)
+            return BaseAPIView.format_response(self, status.HTTP_204_NO_CONTENT, "Replies deleted successfully.", None)
         except Reply.DoesNotExist:
-            return Response({'message': 'No Matching Data Found'}, status=status.HTTP_404_NOT_FOUND)
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
 
 class RepliesFeedbackView(generics.ListCreateAPIView, generics.DestroyAPIView):
     queryset = RepliesFeedback.objects.all()
@@ -280,3 +318,56 @@ class RepliesFeedbackView(generics.ListCreateAPIView, generics.DestroyAPIView):
 class PostFeedbackView(generics.ListCreateAPIView, generics.DestroyAPIView):
     queryset = PostFeedback.objects.all()
     serializer_class = PostFeedbackSerializer
+
+class GetPostFeedbackView(viewsets.ModelViewSet):
+    queryset = PostFeedback.objects.all()
+    serializer_class = PostFeedbackSerializer
+
+    @action(detail=False, methods=['GET'])
+    def search_by_id(self, request, id):
+        try:
+            postFeedback = PostFeedback.objects.get(pk=id)
+            serializer = PostFeedbackSerializer(postFeedback)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
+        except User.DoesNotExist:
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
+        
+    @action(detail=False, methods=['PUT'])
+    def update_feedback(self, request, id):
+        try:
+            postsFeedback = PostFeedback.objects.get(pk=id)
+            serializer = PostFeedbackSerializer(postsFeedback, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
+            else:
+                return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
+        except Reply.DoesNotExist:
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
+        
+class GetRepliesFeedbackView(viewsets.ModelViewSet):
+    queryset = RepliesFeedback.objects.all()
+    serializer_class = RepliesFeedbackSerializer
+
+    @action(detail=False, methods=['GET'])
+    def search_by_id(self, request, id):
+        try:
+            repliesFeedback = RepliesFeedback.objects.get(pk=id)
+            serializer = RepliesFeedbackSerializer(repliesFeedback)
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
+        except User.DoesNotExist:
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
+        
+    @action(detail=False, methods=['PUT'])
+    def update_feedback(self, request, id):
+        try:
+            repliesFeedback = RepliesFeedback.objects.get(pk=id)
+            serializer = RepliesFeedbackSerializer(repliesFeedback, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", serializer.data)
+            else:
+                return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", serializer.errors)
+        except Reply.DoesNotExist:
+            return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
+        
