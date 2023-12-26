@@ -15,18 +15,26 @@ class UserSerializer(serializers.ModelSerializer):
 class RepliesSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
+    likes = serializers.SerializerMethodField()
+    dislikes = serializers.SerializerMethodField()
 
     class Meta:
         model = Reply
         fields = '__all__'
 
+    def get_likes(self, obj):
+        return obj.get_total_likes()
+
+    def get_dislikes(self, obj):
+        return obj.get_total_dislikes()
+    
     def get_user(self, obj):
         user = obj.user
         if user:
             return {'id' : user.id, 'first_name': user.first_name, 'last_name': user.last_name, 'identity_number' : user.identity_number, 'username' : user.username}
         else :
             None
-
+    
     def get_post(self, obj):
         post = obj.post
         if post:

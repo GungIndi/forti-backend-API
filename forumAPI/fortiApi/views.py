@@ -54,7 +54,7 @@ class LoginView(generics.ListCreateAPIView):
         is_valid_password = check_password(password, user.password)
 
         if is_valid_password:
-            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", {'id': user.id,'username': username, 'token': username+user.password})
+            return BaseAPIView.format_response(self, status.HTTP_200_OK, "OK", {'id': user.id,'username': username, 'token': username+user.password, 'user_role': user.user_role})
         else:
             # Authentication failed
             return BaseAPIView.format_response(self, status.HTTP_401_UNAUTHORIZED, "Invalid credentials.", None)
