@@ -38,7 +38,7 @@ class RepliesSerializer(serializers.ModelSerializer):
     def get_post(self, obj):
         post = obj.post
         if post:
-            return {"id" : post.id, "content":post.content, "user_id": post.user_id}
+            return post.id
         else :
             None
 

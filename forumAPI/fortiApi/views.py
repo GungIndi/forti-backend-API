@@ -2,7 +2,7 @@ from django.http import HttpResponse
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import check_password  
 from django.db import IntegrityError
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from rest_framework.response import Response
 from rest_framework import generics, viewsets, status
 from rest_framework.decorators import action
@@ -58,7 +58,6 @@ class LoginView(generics.ListCreateAPIView):
         else:
             # Authentication failed
             return BaseAPIView.format_response(self, status.HTTP_401_UNAUTHORIZED, "Invalid credentials.", None)
-
         
 class UserView(generics.ListAPIView):
     queryset = User.objects.all()
@@ -123,7 +122,6 @@ class GetUser(viewsets.ModelViewSet):
         except User.DoesNotExist:
             return BaseAPIView.format_response(self, status.HTTP_404_NOT_FOUND,  "Data Not Found", None)
 
-
 class PostView(generics.ListCreateAPIView):
     queryset = Post.objects.all()
 
@@ -169,6 +167,8 @@ class PostView(generics.ListCreateAPIView):
         allowed_fields = ['id', 'category', 'content', 'created_at', 'updated_at', 'likes', 'dislikes']
 
         if sort_by:
+            annotate_field = None  # Initialize annotation field
+            feedback_type = None
             if sort_by == 'likes':
                 annotate_field = 'total_likes'
                 feedback_type = 'like'
@@ -176,8 +176,11 @@ class PostView(generics.ListCreateAPIView):
                 annotate_field = 'total_dislikes'
                 feedback_type = 'dislike'
             elif sort_by in allowed_fields:
-                annotate_field = sort_by
-                feedback_type = None
+                if sort_by == 'id' or sort_by == 'created_at' or sort_by == 'updated_at':
+                    posts = posts.order_by(F(sort_by).asc(nulls_last=True))
+                else:
+                    annotate_field = sort_by
+                    feedback_type = None
             else:
                 # Handle invalid sort_by parameter
                 return BaseAPIView.format_response(self, status.HTTP_400_BAD_REQUEST,  "BAD_REQUEST", 'Invalid Parameter')
@@ -185,13 +188,17 @@ class PostView(generics.ListCreateAPIView):
             # Annotate the queryset with total_likes or total_dislikes
             if feedback_type:
                 posts = posts.annotate(**{annotate_field: Count('feedback', filter=Q(feedback__feedback_type=feedback_type))})
-            else:
+            elif annotate_field:
                 posts = posts.annotate(**{annotate_field: Count('feedback')})
 
             # Order the queryset based on the annotated field
-            if order_by == 'desc':
+            if annotate_field and order_by == 'desc':
                 annotate_field = '-' + annotate_field
-            posts = posts.order_by(annotate_field)
+                posts = posts.order_by(annotate_field)
+            elif not annotate_field:  # If annotate_field is None, order by the specified field directly
+                if order_by == 'desc':
+                    sort_by = '-' + sort_by
+                posts = posts.order_by(sort_by)
         elif sort_by in allowed_fields:
             if order_by == 'desc':
                 sort_by = '-' + sort_by
